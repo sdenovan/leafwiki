@@ -34,6 +34,7 @@ import { usePageEditorStore } from './pageEditorStore'
 import { slugifyHeadline } from '../preview/rehypeLineNumber'
 import { htmlToMarkdown } from './htmlToMarkdown'
 import { uploadInlineDataUriImages } from './pasteImageUpload'
+import { editorAssetUrl } from '@/lib/fsLinkEditor'
 
 export type MarkdownEditorRef = {
   insertAtCursor: (text: string) => void
@@ -211,7 +212,7 @@ const MarkdownEditor = (
 
           // The result of uploadAsset looks like this:
           // {"file":"/assets/0NmpvSivg/preview-scrollbar.gif"}
-          const uploadedFile = res.file
+          const uploadedFile = editorAssetUrl(pageId, res.file)
           const ext = file.name.split('.').pop()?.toLowerCase()
 
           const isImage =

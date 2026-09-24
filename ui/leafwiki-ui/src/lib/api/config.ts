@@ -26,6 +26,7 @@ export type Config = {
   avatarAllowedExts: string[]
   enableRevision: boolean
   enableLinkRefactor: boolean
+  filesystemLinks?: boolean
   enableApiKeyManagement: boolean
   gitBackupEnabled: boolean
   gitBackupEnvManaged: boolean

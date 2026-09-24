@@ -1,3 +1,4 @@
+import { editorAssetUrl } from '@/lib/fsLinkEditor'
 import { uploadAsset } from '@/lib/api/assets'
 
 // Matches markdown image references whose source is an inline base64 data URI,
@@ -61,7 +62,10 @@ export async function uploadInlineDataUriImages(
         continue
       }
       const res = await uploadAsset(pageId, file)
-      result = result.replace(fullMatch, `![${alt}](${res.file})`)
+      result = result.replace(
+        fullMatch,
+        `![${alt}](${editorAssetUrl(pageId, res.file)})`,
+      )
     } catch {
       result = result.replace(fullMatch, alt)
     }

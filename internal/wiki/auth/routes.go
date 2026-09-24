@@ -216,6 +216,7 @@ func (r *Routes) handleConfig(ctx httpinternal.RouterContext) gin.HandlerFunc {
 			"avatarAllowedExts":        coreavatar.AllowedExts(),
 			"enableRevision":           opts.EnableRevision,
 			"enableLinkRefactor":       opts.EnableLinkRefactor,
+			"filesystemLinks":          opts.FilesystemLinks,
 			"enableApiKeyManagement":   opts.EnableAPIKeyManagement,
 			"gitBackupEnabled":         opts.GitBackupEnabled,
 			"gitBackupEnvManaged":      opts.GitBackupEnvManaged,

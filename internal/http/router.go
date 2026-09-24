@@ -107,6 +107,7 @@ type RouterOptions struct {
 	MaxAssetUploadSizeBytes int64                    // Maximum allowed size in bytes for asset uploads
 	EnableRevision          bool                     // Whether the revision / page history feature is enabled
 	EnableLinkRefactor      bool                     // Whether the link refactoring feature is enabled in the frontend
+	FilesystemLinks         bool                     // Whether the editor inserts filesystem-style (relative .md) links
 	EnableAPIKeyManagement  bool                     // Whether the experimental API key management feature is enabled
 	Metrics                 *httpmetrics.HTTPMetrics // Optional Prometheus HTTP metrics collector; nil disables request instrumentation
 	GitBackupEnabled        bool                     // Whether git backup is currently running (surfaced to admin UI via /api/config)

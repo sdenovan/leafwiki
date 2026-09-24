@@ -320,6 +320,9 @@ func (w *Wiki) initLinkService() error {
 		return fmt.Errorf("failed to init links store: %w", err)
 	}
 	w.links = links.NewLinkService(w.storageDir, w.tree, linksStore)
+	// Keep filesystem-style relative links valid when pages are converted
+	// between <slug>.md and <slug>/index.md.
+	w.tree.SetKindChangeRewriter(w.links.KindChangeRewriter())
 	if err := w.links.IndexAllPages(); err != nil {
 		w.log.Warn("failed to index links on startup", "error", err)
 	}

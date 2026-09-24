@@ -20,6 +20,7 @@ type ConfigStore = {
   avatarAllowedExts: string[]
   enableRevision: boolean
   enableLinkRefactor: boolean
+  filesystemLinks: boolean
   enableApiKeyManagement: boolean
   gitBackupEnabled: boolean
   gitBackupEnvManaged: boolean
@@ -71,6 +72,7 @@ export const useConfigStore = create<ConfigStore>((set) => ({
   avatarAllowedExts: DEFAULT_AVATAR_ALLOWED_EXTS,
   enableRevision: false,
   enableLinkRefactor: false,
+  filesystemLinks: false,
   enableApiKeyManagement: false,
   gitBackupEnabled: false,
   gitBackupEnvManaged: false,
@@ -121,6 +123,7 @@ export const useConfigStore = create<ConfigStore>((set) => ({
           avatarAllowedExts,
           enableRevision: config.enableRevision ?? false,
           enableLinkRefactor: config.enableLinkRefactor ?? false,
+          filesystemLinks: config.filesystemLinks ?? false,
           enableApiKeyManagement: config.enableApiKeyManagement ?? false,
           gitBackupEnabled: config.gitBackupEnabled ?? false,
           gitBackupEnvManaged: config.gitBackupEnvManaged ?? false,

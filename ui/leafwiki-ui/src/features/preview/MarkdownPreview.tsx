@@ -1,7 +1,9 @@
 import { useDesignModeStore } from '@/features/designtoggle/designmode'
 import i18next from '@/lib/i18n'
 import { preprocessWikilinks } from '@/lib/preprocessWikilinks'
-import { withBasePath } from '@/lib/routePath'
+import { fsSourcePath, toAbsoluteWikiUrl } from '@/lib/fsLinkPath'
+import { buildViewUrl, stripBasePath, withBasePath } from '@/lib/routePath'
+import { normalizeWikiRoutePath, toWikiLookupPath } from '@/lib/wikiPath'
 import { useTreeStore } from '@/stores/tree'
 import 'katex/dist/katex.min.css'
 import {
@@ -236,6 +238,14 @@ function normalizeFootnoteHref(href?: string) {
   return `#${CLOBBER_PREFIX}${href.slice(1)}`
 }
 
+function getLocationWikiPath(): string {
+  if (typeof window === 'undefined') return '/'
+  const pathname = window.location.pathname
+  return normalizeWikiRoutePath(
+    buildViewUrl(stripBasePath(pathname) ?? pathname),
+  )
+}
+
 function transformMarkdownUrl(url: string) {
   if (WIKILINK_PROTOCOLS.some((protocol) => url.startsWith(protocol))) {
     return url
@@ -278,6 +288,17 @@ export default function MarkdownPreview({
   onStickyTocChange,
 }: Props) {
   const treeById = useTreeStore((s) => s.byId)
+  // Filesystem-style links (relative ".md" links and relative asset paths)
+  // resolve against the page's file location, which depends on its kind.
+  const currentWikiPath = normalizeWikiRoutePath(path ?? getLocationWikiPath())
+  const pageKind = useTreeStore(
+    (s) => s.getPageByPath(toWikiLookupPath(currentWikiPath))?.kind,
+  )
+  const fsSource = fsSourcePath(currentWikiPath, pageKind === 'section')
+  const urlTransform = useCallback(
+    (url: string) => transformMarkdownUrl(toAbsoluteWikiUrl(fsSource, url)),
+    [fsSource],
+  )
   const designMode = useDesignModeStore((state) => state.mode)
   const prefersLight = useSyncExternalStore(
     (onStoreChange) => {
@@ -656,7 +677,7 @@ export default function MarkdownPreview({
               ],
             ]}
             components={components}
-            urlTransform={transformMarkdownUrl}
+            urlTransform={urlTransform}
           >
             {normalizedContent}
           </ReactMarkdown>
@@ -664,7 +685,7 @@ export default function MarkdownPreview({
         </>
       </MarkdownPreviewErrorBoundary>
     ),
-    [normalizedContent, components, path, content],
+    [normalizedContent, components, path, content, urlTransform],
   )
 
   if (!showToc || tocEntries.length <= 3) {

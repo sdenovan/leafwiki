@@ -271,7 +271,7 @@ func (uc *PreviewPageRefactorUseCase) getAffectedPages(oldPath string, pageTitle
 		}
 
 		rules := []links.RewriteRule{{OldPath: oldPath, NewPath: oldPath}}
-		result := engine.Rewrite(sourcePage.Content, sourcePage.CalculatePath(), rules)
+		result := engine.Rewrite(sourcePage.Content, links.SourcePathForNode(sourcePage.PageNode), rules)
 		for _, w := range result.Warnings {
 			if !containsString(item.Warnings, w.Message) {
 				item.Warnings = append(item.Warnings, w.Message)
@@ -567,7 +567,7 @@ func (uc *ApplyPageRefactorUseCase) rewriteAffectedPages(userID string, affected
 		if !ok {
 			continue
 		}
-		mdResult := engine.Rewrite(page.Content, page.CalculatePath(), rules)
+		mdResult := engine.Rewrite(page.Content, links.SourcePathForNode(page.PageNode), rules)
 		wikiResult := engine.RewriteWikiLinksPrecompiled(mdResult.Content, compiledWikiRewrites)
 		newContent := wikiResult.Content
 		if mdResult.Count() == 0 && wikiResult.Count() == 0 || newContent == page.Content {
@@ -661,9 +661,14 @@ func (uc *ApplyPageRefactorUseCase) rewritePathChangedSubtree(userID string, sna
 		if !ok {
 			continue
 		}
-		currentPath := current.CalculatePath()
+		currentPath := links.SourcePathForNode(current.PageNode)
+		// A move never changes the kind of the moved nodes, so the old source
+		// path shares the current kind.
+		oldSource := links.SourcePath(snap.OldPath, current.Kind)
 		// First, fix relative links whose base path changed because the page moved.
-		relResult := engine.RewriteRelativeLinksForPathChange(snap.Content, snap.OldPath, currentPath, rules)
+		relResult := engine.RewriteRelativeLinksForPathChange(snap.Content, oldSource, currentPath, rules)
+		// Relative asset images/embeds depend on the file location as well.
+		relResult.Content = engine.RewriteFilesystemLinks(relResult.Content, oldSource, currentPath, nil, nil, links.FSScopeMedia).Content
 		// Then, fix absolute links within the moved subtree (e.g. /old/sub → /new/sub).
 		// RewriteRelativeLinksForPathChange skips absolute links, so they need a
 		// second pass. Using the new current path is safe here: relative links were

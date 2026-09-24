@@ -200,6 +200,7 @@ func resolveWikiLinkTargets(treeService *tree.TreeService, targets []string) []T
 
 // collectTargetsFromContent extracts and resolves all link targets from a page's
 // content — both standard Markdown links and [[Title]] wiki-link syntax.
+// pagePath is a source path (see SourcePath); a trailing "/" marks a section.
 func collectTargetsFromContent(treeService *tree.TreeService, pagePath string, content string) []TargetLink {
 	mdLinks := extractLinksFromMarkdown(content)
 	mdTargets := resolveTargetLinks(treeService, pagePath, mdLinks)
@@ -282,6 +283,15 @@ func resolveTargetLinks(tree *tree.TreeService, currentPath string, links []stri
 			continue
 		}
 
+		// filesystem-style links (".md", directories, relative assets)
+		switch target := resolveFSHref(currentPath, link); target.Kind {
+		case fsTargetAsset:
+			continue
+		case fsTargetPage:
+			targetLinks = append(targetLinks, lookupTargetLink(tree, target.Route, link))
+			continue
+		}
+
 		// resolve link against current path
 		resolvedPath, err := resolveURLPath(currentPath, link)
 		if err != nil || resolvedPath == "" {
@@ -314,6 +324,20 @@ func resolveTargetLinks(tree *tree.TreeService, currentPath string, links []stri
 	}
 
 	return targetLinks
+}
+
+// lookupTargetLink resolves an already normalized route to a TargetLink.
+// When route is empty (link points outside the wiki) the original href is
+// recorded as broken.
+func lookupTargetLink(tree *tree.TreeService, route string, href string) TargetLink {
+	if route == "" {
+		return TargetLink{Broken: true, TargetPagePath: href}
+	}
+	page, err := tree.FindPageByRoutePath(strings.TrimPrefix(route, "/"))
+	if err == nil && page != nil {
+		return TargetLink{TargetPageID: page.ID, TargetPagePath: route}
+	}
+	return TargetLink{TargetPagePath: route, Broken: true}
 }
 
 func toBacklinkResult(tree *tree.TreeService, backlinks []Backlink) *BacklinkResult {

@@ -99,6 +99,7 @@ func newRootCommandWithConfig(cfg *serverConfig) *cli.Command {
 		Commands: []*cli.Command{
 			newResetAdminPasswordCommand(cfg),
 			newRestoreSnapshotCommand(cfg),
+			newMigrateFilesystemLinksCommand(cfg),
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			// The log-format validator has already rejected anything parseLogFormat
@@ -133,6 +134,22 @@ func newRestoreSnapshotCommand(cfg *serverConfig) *cli.Command {
 		ArgsUsage: "<path-to-zip>",
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return runRestoreSnapshotCommand(cfg.server.dataDir, cmd.Args().First())
+		},
+	}
+}
+
+func newMigrateFilesystemLinksCommand(cfg *serverConfig) *cli.Command {
+	return &cli.Command{
+		Name:  "migrate-filesystem-links",
+		Usage: "Convert page links and asset paths to relative filesystem-style links (run while the server is stopped)",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "pages-dir",
+				Usage: "directory holding the pages when it is not <data-dir>/root (e.g. a repo's wiki/docs mounted as /app/data/root)",
+			},
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			return runMigrateFilesystemLinksCommand(cfg.server.dataDir, cmd.String("pages-dir"))
 		},
 	}
 }

@@ -6,6 +6,7 @@ import type {
 import { pickedCompletion } from '@codemirror/autocomplete'
 import type { EditorState } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
+import { editorPageLink } from '@/lib/fsLinkEditor'
 import { FlatPageSearchItem, searchFlatPageSearchItems } from '@/lib/pageSearch'
 import { useTreeStore } from '@/stores/tree'
 
@@ -81,7 +82,7 @@ export function buildMarkdownLinkOptions(
     displayLabel: item.title,
     info: item.breadcrumb,
     type: 'text',
-    apply: `/${item.path}`,
+    apply: editorPageLink(item.path),
     path: item.path,
   }))
 }

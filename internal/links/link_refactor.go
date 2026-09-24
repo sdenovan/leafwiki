@@ -39,6 +39,7 @@ type inlineLinkOccurrence struct {
 	RawDestination string
 	Start          int
 	End            int
+	IsImage        bool
 }
 
 func NewMarkdownRefactorEngine() *MarkdownRefactorEngine {
@@ -197,6 +198,10 @@ func (e *MarkdownRefactorEngine) FindWikiLinksForPath(content, oldPath, pageTitl
 	return found
 }
 
+// RewriteRelativeLinksForPathChange rewrites relative links in content that
+// moved from oldCurrentPath to newCurrentPath. Both are source paths (see
+// SourcePath). Filesystem-style links are rewritten with file semantics;
+// relative asset images are handled by RewriteFilesystemLinks.
 func (e *MarkdownRefactorEngine) RewriteRelativeLinksForPathChange(content string, oldCurrentPath string, newCurrentPath string, rules []RewriteRule) RewriteResult {
 	if content == "" || oldCurrentPath == newCurrentPath {
 		return RewriteResult{Content: content}
@@ -546,6 +551,15 @@ func rewriteLinkDestination(currentPath string, destination string, rules []Rewr
 		return destination, false, nil
 	}
 
+	if IsFilesystemLink(currentPath, destination) {
+		newSource := currentPath
+		if rewrittenCurrent, ok := applyRewriteRules(normalizeWikiPath(currentPath), rules); ok {
+			newSource = withSourceRoute(currentPath, rewrittenCurrent)
+		}
+		newDest, changed, _ := rewriteFSDestination(currentPath, newSource, destination, rules, nil)
+		return newDest, changed, nil
+	}
+
 	resolvedPath, err := resolveURLPath(currentPath, baseDest)
 	if err != nil || resolvedPath == "" {
 		return destination, false, &RewriteWarning{
@@ -582,6 +596,10 @@ func rewriteRelativeLinkForPathChange(oldCurrentPath string, newCurrentPath stri
 	baseDest, suffix := splitLinkDestination(destination)
 	if baseDest == "" || strings.HasPrefix(baseDest, "/") || isExternalLinkDestination(baseDest) || isAssetLinkDestination(baseDest) {
 		return destination, false, nil
+	}
+
+	if newDest, changed, ok := rewriteFSDestination(oldCurrentPath, newCurrentPath, destination, rules, nil); ok {
+		return newDest, changed, nil
 	}
 
 	resolvedPath, err := resolveURLPath(oldCurrentPath, baseDest)

@@ -9,6 +9,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { deferStateUpdate } from '@/lib/deferState'
+import { editorPageLink } from '@/lib/fsLinkEditor'
 import { searchFlatPageSearchItems } from '@/lib/pageSearch'
 import { DIALOG_LINK_INSERT } from '@/lib/registries'
 import { createHotkeyDefinition } from '@/lib/shortcuts/shortcutCatalog'
@@ -83,7 +84,7 @@ export function LinkInsertDialog({
   }, [url])
 
   const selectSuggestion = (path: string, title: string) => {
-    setUrl(`/${path}`)
+    setUrl(editorPageLink(path))
     if (!text) setText(title)
     setUrlFocused(false)
   }

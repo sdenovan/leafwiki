@@ -311,3 +311,75 @@ describe('MarkdownPreview wikilinks with a slash in the title', () => {
     expect(container.textContent).not.toContain('](')
   })
 })
+
+describe('MarkdownPreview filesystem-style links', () => {
+  const page = (
+    id: string,
+    path: string,
+    kind: 'page' | 'section' = 'page',
+  ): PageNode => ({
+    id,
+    title: id,
+    slug: path.split('/').pop() ?? path,
+    path,
+    version: 'v1',
+    kind,
+    children: null,
+    parentId: null,
+  })
+
+  beforeEach(() => {
+    localStorage.setItem('design-mode', 'light')
+    useDesignModeStore.setState({ mode: 'light' })
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-color-scheme: light)',
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+  })
+
+  function renderAt(path: string, content: string) {
+    return render(
+      <MemoryRouter>
+        <TooltipProvider>
+          <MarkdownPreview content={content} path={path} />
+        </TooltipProvider>
+      </MemoryRouter>,
+    )
+  }
+
+  it('resolves .md links and relative assets against the page file', () => {
+    const a = page('a', 'x/a')
+    const b = page('b', 'x/b')
+    useTreeStore.setState({
+      byId: { a, b },
+      byPath: { 'x/a': a, 'x/b': b },
+    })
+
+    const { container } = renderAt(
+      'x/a',
+      '[B](b.md)\n\n![pic](../../assets/a/p.png)',
+    )
+
+    expect(container.querySelector('a[href="/x/b"]')).not.toBeNull()
+    const img = container.querySelector('img')
+    expect(img?.getAttribute('src')).toContain('/assets/a/p.png')
+  })
+
+  it('uses the section folder as base for index.md pages', () => {
+    const a = page('a', 'x/a', 'section')
+    const c = page('c', 'x/a/c')
+    useTreeStore.setState({
+      byId: { a, c },
+      byPath: { 'x/a': a, 'x/a/c': c },
+    })
+
+    const { container } = renderAt('x/a', '[C](c.md)')
+    expect(container.querySelector('a[href="/x/a/c"]')).not.toBeNull()
+  })
+})

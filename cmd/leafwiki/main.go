@@ -28,9 +28,11 @@ import (
 	"github.com/perber/wiki/internal/core/ignore"
 	sharedcrypto "github.com/perber/wiki/internal/core/shared/crypto"
 	"github.com/perber/wiki/internal/core/tools"
+	"github.com/perber/wiki/internal/core/tree"
 	httpinternal "github.com/perber/wiki/internal/http"
 	httpmetrics "github.com/perber/wiki/internal/http/metrics"
 	authmw "github.com/perber/wiki/internal/http/middleware/auth"
+	"github.com/perber/wiki/internal/links"
 	"github.com/perber/wiki/internal/publicaccess"
 	"github.com/perber/wiki/internal/restore"
 	"github.com/perber/wiki/internal/snapshot"
@@ -99,6 +101,49 @@ func runRestoreSnapshotCommand(dataDir, snapshotPath string) error {
 }
 
 var gracefulShutdownTimeout = 10 * time.Second
+
+// runMigrateFilesystemLinksCommand implements `migrate-filesystem-links`.
+func runMigrateFilesystemLinksCommand(dataDir string, pagesDir string) error {
+	storageDir := dataDir
+	if pagesDir != "" {
+		// Stage a throwaway storage dir whose root/ points at pagesDir so
+		// tree bookkeeping files (schema.json etc.) never land in the pages.
+		absPages, err := filepath.Abs(pagesDir)
+		if err != nil {
+			return err
+		}
+		if info, err := os.Stat(absPages); err != nil || !info.IsDir() {
+			return fmt.Errorf("pages dir %q is not a directory", pagesDir)
+		}
+		tmp, err := os.MkdirTemp("", "leafwiki-migrate-")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.RemoveAll(tmp) }()
+		if err := os.Symlink(absPages, filepath.Join(tmp, "root")); err != nil {
+			return err
+		}
+		storageDir = tmp
+	} else if info, err := os.Stat(filepath.Join(dataDir, "root")); err != nil || !info.IsDir() {
+		return fmt.Errorf("no pages found: %q does not exist; point --data-dir at the directory containing root/, or pass --pages-dir", filepath.Join(dataDir, "root"))
+	}
+
+	ts := tree.NewTreeService(storageDir)
+	if err := ts.LoadTree(); err != nil {
+		return fmt.Errorf("load tree: %w", err)
+	}
+	pageCount := 0
+	_ = ts.WalkNodes(func(string) error { pageCount++; return nil })
+	if pageCount == 0 {
+		return fmt.Errorf("no pages found under %q", filepath.Join(storageDir, "root"))
+	}
+	changed, err := links.MigrateTreeToFilesystemLinks(ts)
+	if err != nil {
+		return fmt.Errorf("migrate links: %w", err)
+	}
+	fmt.Printf("Converted links in %d page(s). Start the server with --filesystem-links.\n", changed)
+	return nil
+}
 
 // errLogged reports a failure that has already been logged through the
 // configured logger; errReported one that was written to stderr before the
@@ -350,6 +395,7 @@ func runServerCommand(_ context.Context, cmd *cli.Command, cfg *serverConfig) er
 		MaxAssetUploadSizeBytes: maxAssetUploadSize,
 		EnableRevision:          cfg.frontend.enableRevision,
 		EnableLinkRefactor:      cfg.frontend.enableLinkRefactor,
+		FilesystemLinks:         cfg.frontend.filesystemLinks,
 		EnableAPIKeyManagement:  cfg.frontend.enableAPIKeyManagement,
 		Metrics:                 metrics,
 		GitBackupEnabled:        backupManager.Enabled(),

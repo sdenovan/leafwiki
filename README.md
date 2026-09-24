@@ -86,6 +86,11 @@ docker run -p 8080:8080 -v ~/leafwiki-data:/app/data \
 **Opt-in via feature flags:**
 - Revision history (`--enable-revision`)
 - Automatic link rewriting when pages are renamed or moved (`--enable-link-refactor`)
+- Filesystem-style links (`--filesystem-links`): the editor inserts relative
+  `.md` page links and relative asset paths, so content on disk also renders
+  on GitHub. These links are always understood when rendering. Convert
+  existing content once with `leafwiki migrate-filesystem-links` while the
+  server is stopped.
 - Email via SMTP for password reset and user invitations (`--smtp-host`, v0.13.0)
 - Git backup — push wiki content to a remote Git repository via SSH or HTTP(S) (`--git-backup`, v0.11.3, experimental)
 
@@ -356,6 +361,7 @@ For plain HTTP: add `--allow-insecure=true` so login and CSRF cookies work.
 | `--hide-link-metadata-section`   | Hide backlinks and link status panel                                    | `false`       | –       |
 | `--enable-revision`              | Enable revision history                                                 | `false`       | v0.9.0  |
 | `--enable-link-refactor`         | Enable link rewriting on rename/move                                    | `false`       | v0.9.0  |
+| `--filesystem-links`             | Editor inserts relative `.md` links and asset paths (GitHub-friendly)   | `false`       | –       |
 | `--max-revision-history`         | Max revisions per page; `0` = unlimited                                 | `100`         | v0.9.0  |
 | `--revision-coalesce-window`     | Window for coalescing rapid successive auto-save revisions by the same author; `0` = disabled | `5m` | v0.11.0 |
 | `--enable-http-remote-user`      | Enable reverse-proxy auth via HTTP header                               | `false`       | v0.10.0 |

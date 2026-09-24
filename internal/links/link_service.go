@@ -56,7 +56,7 @@ func (b *LinkService) IndexAllPagesContext(ctx context.Context) error {
 		if errs[i] != nil {
 			return errs[i]
 		}
-		targets := collectTargetsFromContent(b.treeService, page.CalculatePath(), page.Content)
+		targets := collectTargetsFromContent(b.treeService, SourcePathForNode(page.PageNode), page.Content)
 		if err := b.store.AddLinks(page.ID, page.Title, targets); err != nil {
 			return err
 		}
@@ -252,7 +252,7 @@ func (b *LinkService) isAmbiguousWikilinkOutgoing(outgoing Outgoing) bool {
 }
 
 func (b *LinkService) UpdateLinksForPage(page *tree.Page, content string) error {
-	targets := collectTargetsFromContent(b.treeService, page.CalculatePath(), content)
+	targets := collectTargetsFromContent(b.treeService, SourcePathForNode(page.PageNode), content)
 	return b.store.AddLinks(page.ID, page.Title, targets)
 }
 
@@ -263,7 +263,7 @@ func (b *LinkService) UpdateLinksAndHealForPages(pages []*tree.Page) error {
 			continue
 		}
 		pagePath := normalizeWikiPath(page.CalculatePath())
-		targets := collectTargetsFromContent(b.treeService, pagePath, page.Content)
+		targets := collectTargetsFromContent(b.treeService, SourcePathForNode(page.PageNode), page.Content)
 		updates = append(updates, PageLinkUpdate{
 			FromPageID: page.ID,
 			FromTitle:  page.Title,

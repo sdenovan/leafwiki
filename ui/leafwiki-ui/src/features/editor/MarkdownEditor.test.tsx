@@ -96,6 +96,7 @@ vi.mock('@codemirror/view', () => ({
 vi.mock('@/lib/config', () => ({
   formatBytes: (n: number) => `${n}B`,
   IMAGE_EXTENSIONS: ['png', 'jpg', 'gif', 'webp'],
+  BASE_PATH: '',
 }))
 
 vi.mock('../preview/rehypeLineNumber', () => ({

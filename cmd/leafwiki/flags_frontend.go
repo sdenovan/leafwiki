@@ -15,6 +15,7 @@ type frontendOptions struct {
 	maxAssetUploadSize      string
 	enableRevision          bool
 	enableLinkRefactor      bool
+	filesystemLinks         bool
 	enableAPIKeyManagement  bool
 	maxRevisionHistory      int
 	revisionCoalesceWindow  time.Duration
@@ -80,6 +81,13 @@ func (o *frontendOptions) Flags() []cli.Flag {
 			Category:    catFeatures,
 			Usage:       "enable the link refactoring dialog and rewrite flow",
 			Sources:     envBoolVars("LEAFWIKI_ENABLE_LINK_REFACTOR"),
+		},
+		&cli.BoolFlag{
+			Name:        "filesystem-links",
+			Destination: &o.filesystemLinks,
+			Category:    catFeatures,
+			Usage:       "insert relative .md page links and relative asset paths so content also renders on GitHub",
+			Sources:     envBoolVars("LEAFWIKI_FILESYSTEM_LINKS"),
 		},
 		&cli.BoolFlag{
 			Name:        "enable-api-key-management",

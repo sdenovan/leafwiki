@@ -1,3 +1,4 @@
+import { editorAssetUrl, isFilesystemLinksEnabled } from '@/lib/fsLinkEditor'
 import { Button } from '@/components/ui/button'
 import { deleteAsset, renameAsset } from '@/lib/api/assets'
 import { mapApiError } from '@/lib/api/errors'
@@ -41,13 +42,15 @@ export function AssetItem({
   onAssetVersionChange,
 }: Props) {
   const { t } = useTranslation('assets')
-  const markdownAssetUrl = filename
   const assetPath = filename.startsWith('/assets/')
     ? filename
     : filename.startsWith('assets/')
       ? `/${filename}`
       : `/assets/${filename}`
   const assetUrl = withBasePath(assetPath)
+  const markdownAssetUrl = isFilesystemLinksEnabled()
+    ? editorAssetUrl(pageId, assetPath)
+    : filename
   const ext = filename.split('.').pop()?.toLowerCase()
   const isImage = imageExtensions.includes(ext ?? '')
   const isAudio = audioExtensions.includes(ext ?? '')

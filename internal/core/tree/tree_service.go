@@ -27,6 +27,7 @@ type TreeService struct {
 	nodesByID    map[string]*PageNode
 	nodesByTitle map[string][]*PageNode
 	childSlugs   map[string]map[string]*PageNode
+	kindRewriter KindChangeRewriter
 
 	mu sync.RWMutex
 }
@@ -283,7 +284,7 @@ func (t *TreeService) createNodeLocked(userID string, parentID *string, title st
 	// if not, we need to convert it to a section
 	if parent.Kind != NodeKindSection && parent.ID != "root" {
 		t.log.Info("converting parent to section", "parentID", parent.ID, "oldKind", parent.Kind, "newKind", NodeKindSection)
-		if err := t.store.ConvertNode(parent, NodeKindSection); err != nil {
+		if err := t.convertNodeLocked(parent, NodeKindSection); err != nil {
 			return nil, fmt.Errorf("could not convert parent node: %w", err)
 		}
 		parent.Kind = NodeKindSection
@@ -385,7 +386,7 @@ func (t *TreeService) rollbackCreatedNodeLocked(parent *PageNode, entry *PageNod
 		if err := os.Remove(filepath.Join(orderPath, orderFilename)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove parent order file before fold-back: %w", err)
 		}
-		if err := t.store.ConvertNode(parent, NodeKindPage); err != nil {
+		if err := t.convertNodeLocked(parent, NodeKindPage); err != nil {
 			return err
 		}
 		parent.Kind = NodeKindPage
@@ -630,7 +631,7 @@ func (t *TreeService) DeleteNode(userID string, id string, recursive bool, expec
 				// This should not happen due to earlier check, but just in case
 				// Convert to section and delete recursively
 				t.log.Info("converting page to section for recursive delete", "pageID", node.ID)
-				if err := t.store.ConvertNode(node, NodeKindSection); err != nil {
+				if err := t.convertNodeLocked(node, NodeKindSection); err != nil {
 					return fmt.Errorf("could not convert page to section: %w", err)
 				}
 				node.Kind = NodeKindSection
@@ -773,7 +774,7 @@ func (t *TreeService) ConvertNode(userID string, id string, kind NodeKind, expec
 
 		t.log.Info("changing node kind", "nodeID", node.ID, "oldKind", node.Kind, "newKind", kind)
 
-		if err := t.store.ConvertNode(node, kind); err != nil {
+		if err := t.convertNodeLocked(node, kind); err != nil {
 			return fmt.Errorf("could not convert node: %w", err)
 		}
 		node.Kind = kind
@@ -1359,7 +1360,7 @@ func (t *TreeService) MoveNodeToPosition(userID string, id string, parentID stri
 
 	newParentWasConverted := false
 	if newParent.ID != "root" && newParent.Kind == NodeKindPage {
-		if err := t.store.ConvertNode(newParent, NodeKindSection); err != nil {
+		if err := t.convertNodeLocked(newParent, NodeKindSection); err != nil {
 			return fmt.Errorf("could not auto-convert new parent page to section: %w", err)
 		}
 		newParent.Kind = NodeKindSection
@@ -1489,7 +1490,7 @@ func (t *TreeService) rollbackMovedNodeLocked(node *PageNode, oldParent *PageNod
 				rollbackErr = errors.Join(rollbackErr, fmt.Errorf("remove child order before parent rollback: %w", removeErr))
 			}
 		}
-		if convertErr := t.store.ConvertNode(newParent, NodeKindPage); convertErr != nil {
+		if convertErr := t.convertNodeLocked(newParent, NodeKindPage); convertErr != nil {
 			rollbackErr = errors.Join(rollbackErr, fmt.Errorf("convert destination parent back to page: %w", convertErr))
 		} else {
 			newParent.Kind = NodeKindPage
