@@ -9,6 +9,14 @@ describe('MarkdownImage', () => {
     useDialogsStore.setState({ dialogType: null, dialogProps: null })
   })
 
+  it('appends a ?v= cache-busting param to an /assets/ src', () => {
+    render(<MarkdownImage src="/assets/foo.png" alt="foo" />)
+
+    const src = screen.getByAltText('foo').getAttribute('src') ?? ''
+    expect(src).toContain('/assets/foo.png')
+    expect(src).toMatch(/\?v=\d+$/)
+  })
+
   it('opens the image preview dialog when not wrapped in a link', () => {
     render(<MarkdownImage src="/assets/foo.png" alt="foo" />)
 
@@ -21,6 +29,15 @@ describe('MarkdownImage', () => {
     render(<MarkdownImage src="/assets/foo.png" alt="foo" />)
 
     expect(screen.getByAltText('foo')).toHaveStyle({ display: 'inline-block' })
+  })
+
+  it('has no vertical margin so paragraph spacing governs the gap around it (#1524)', () => {
+    render(<MarkdownImage src="/assets/foo.png" alt="foo" />)
+
+    expect(screen.getByAltText('foo')).toHaveStyle({
+      marginTop: '0px',
+      marginBottom: '0px',
+    })
   })
 
   it('lets the surrounding link handle the click instead of opening the preview', () => {

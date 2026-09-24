@@ -1,7 +1,7 @@
+import { versionAssetSrc } from '@/lib/assetSrc'
 import { DIALOG_IMAGE_PREVIEW } from '@/lib/registries'
-import { withBasePath } from '@/lib/routePath'
 import { useDialogsStore } from '@/stores/dialogs'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 type MarkdownImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   resolveAssetUrl?: (src: string) => string
@@ -17,18 +17,6 @@ function shouldOpenInNewTab(e: React.MouseEvent<HTMLImageElement>) {
   return e.button === 0 && (e.metaKey || e.ctrlKey)
 }
 
-function normalizeImageSrc(src: string) {
-  if (src.startsWith('/assets/') || src.startsWith('/api/')) {
-    return withBasePath(src)
-  }
-
-  if (src.startsWith('assets/')) {
-    return withBasePath(`/${src}`)
-  }
-
-  return src
-}
-
 export function MarkdownImage({
   src = '',
   style,
@@ -42,30 +30,10 @@ export function MarkdownImage({
     () => resolveAssetUrl?.(src) ?? src,
     [resolveAssetUrl, src],
   )
-  const [versionedSrc, setVersionedSrc] = useState(() =>
-    normalizeImageSrc(resolvedSrc),
+  const versionedSrc = useMemo(
+    () => versionAssetSrc(resolvedSrc),
+    [resolvedSrc],
   )
-
-  useEffect(() => {
-    if (
-      !resolvedSrc?.startsWith('/assets/') &&
-      !resolvedSrc?.startsWith('assets/') &&
-      !resolvedSrc?.startsWith('/api/')
-    ) {
-      setVersionedSrc(normalizeImageSrc(resolvedSrc))
-      return
-    }
-
-    try {
-      const url = new URL(normalizeImageSrc(resolvedSrc), location.origin)
-      if (!url.searchParams.has('v')) {
-        url.searchParams.set('v', Date.now().toString())
-      }
-      setVersionedSrc(url.toString())
-    } catch {
-      setVersionedSrc(normalizeImageSrc(resolvedSrc))
-    }
-  }, [resolvedSrc])
 
   return (
     <img
@@ -77,6 +45,15 @@ export function MarkdownImage({
         // same Markdown line (`![alt](img) text`). Keep Markdown images inline
         // so trailing/leading text stays on the same line (#1471).
         display: 'inline-block',
+        // Tailwind Typography's `prose img` rule adds a 2em top/bottom margin
+        // sized for a standalone block-level figure. On an inline-block image
+        // that margin never collapses with the surrounding paragraph's own
+        // margin, so it stacked on top of it and produced an oversized gap
+        // around "image + text" lines (and before a wrapped second line of
+        // the same paragraph). Let the paragraph's margin be the only source
+        // of vertical spacing (#1524).
+        marginTop: 0,
+        marginBottom: 0,
         ...style,
         cursor: 'zoom-in',
         ...(width

@@ -26,6 +26,7 @@ import (
 	"github.com/perber/wiki/internal/core/auth"
 	"github.com/perber/wiki/internal/core/email"
 	"github.com/perber/wiki/internal/core/ignore"
+	"github.com/perber/wiki/internal/core/settings"
 	sharedcrypto "github.com/perber/wiki/internal/core/shared/crypto"
 	"github.com/perber/wiki/internal/core/tools"
 	"github.com/perber/wiki/internal/core/tree"
@@ -36,6 +37,7 @@ import (
 	"github.com/perber/wiki/internal/publicaccess"
 	"github.com/perber/wiki/internal/restore"
 	"github.com/perber/wiki/internal/snapshot"
+	"github.com/perber/wiki/internal/tocdisplay"
 	"github.com/perber/wiki/internal/wiki"
 	wikibackup "github.com/perber/wiki/internal/wiki/backup"
 	wikiinstancesettings "github.com/perber/wiki/internal/wiki/instancesettings"
@@ -259,6 +261,11 @@ func runServerCommand(_ context.Context, cmd *cli.Command, cfg *serverConfig) er
 
 	publicAccessService := buildPublicAccessService(cmd, cfg)
 
+	tocDisplayService, err := tocdisplay.New(cfg.server.dataDir)
+	if err != nil {
+		fail("Failed to load toc-display configuration", "error", err)
+	}
+
 	if !cfg.auth.disableAuth {
 		if cfg.auth.jwtSecret == "" {
 			fail("JWT secret is required. Set it using --jwt-secret or LEAFWIKI_JWT_SECRET environment variable.")
@@ -272,6 +279,14 @@ func runServerCommand(_ context.Context, cmd *cli.Command, cfg *serverConfig) er
 	var metrics *httpmetrics.HTTPMetrics
 	if cfg.metrics.enableMetrics {
 		metrics = httpmetrics.NewHTTPMetrics(Version)
+	}
+
+	// Initialize git backup before the wiki loads its tree: on first contact with
+	// an existing backup this syncs its content into the data directory, so the
+	// wiki boots with those pages and does not seed a welcome page on top of them.
+	backupManager, err := buildBackupManager(cfg)
+	if err != nil {
+		fail("git backup init failed: %v", err)
 	}
 
 	w, err := wiki.NewWiki(&wiki.WikiOptions{
@@ -307,7 +322,7 @@ func runServerCommand(_ context.Context, cmd *cli.Command, cfg *serverConfig) er
 		fail("Failed to initialize Wiki", "error", err)
 	}
 
-	w.SetInstanceSettingsRoutes(wikiinstancesettings.NewRoutes(publicAccessService, w.AuthService(), slog.Default()))
+	w.SetInstanceSettingsRoutes(wikiinstancesettings.NewRoutes(publicAccessService, tocDisplayService, w.AuthService(), slog.Default()))
 
 	// Log .leafwikiignore status
 	rootDir := filepath.Join(cfg.server.dataDir, "root")
@@ -323,12 +338,12 @@ func runServerCommand(_ context.Context, cmd *cli.Command, cfg *serverConfig) er
 		}
 	}()
 
-	// Initialize git backup (env-managed vs settings-managed — see buildBackupManager).
-	backupManager, err := buildBackupManager(cfg)
-	if err != nil {
-		fail("git backup init failed: %v", err)
-	}
 	defer backupManager.Stop()
+	// A settings Reconfigure (or the settings-managed manager's own background
+	// boot) can materialize remote content straight onto disk after the wiki's
+	// tree/SQLite index has already loaded — keep the index from going stale by
+	// triggering the same resync used for SIGUSR1/SIGHUP.
+	backupManager.SetOnContentSynced(w.TriggerResyncAsync)
 	w.SetBackupRoutes(wikibackup.NewRoutes(backupManager, w.AuthService()))
 
 	// Initialize full backup snapshots if enabled
@@ -368,8 +383,7 @@ func runServerCommand(_ context.Context, cmd *cli.Command, cfg *serverConfig) er
 			APIKeyService:      w.APIKeyService(),
 			Favorites:          w.Favorites(),
 			UserSettings:       w.UserSettingsService(),
-			BrandingService:    w.BrandingService(),
-			PublicAccess:       publicAccessService,
+			Reloadables:        []settings.Reloadable{w.BrandingService(), publicAccessService, tocDisplayService},
 			UserResolver:       w.UserResolver(),
 			TriggerResync:      w.TriggerResyncAsync,
 			MaxUploadSizeBytes: restoreUploadMaxSize,
@@ -383,6 +397,7 @@ func runServerCommand(_ context.Context, cmd *cli.Command, cfg *serverConfig) er
 
 	router := httpinternal.NewRouter(w.Registrars(), w.FrontendConfig(), httpinternal.RouterOptions{
 		PublicAccess:            publicAccessService,
+		AlwaysShowToc:           tocDisplayService,
 		EditorLimit:             cfg.auth.editorLimit,
 		InjectCodeInHeader:      cfg.frontend.injectCodeInHeader,
 		CustomStylesheet:        cfg.frontend.customStylesheet,
@@ -749,6 +764,7 @@ func buildBackupManager(cfg *serverConfig) (*backup.Manager, error) {
 		Enabled:           true,
 		RootDir:           rootDir,
 		AssetsDir:         assetsDir,
+		Path:              cfg.backup.gitBackupPath,
 		AuthorName:        cfg.backup.gitBackupAuthorName,
 		AuthorEmail:       cfg.backup.gitBackupAuthorEmail,
 		RemoteURL:         cfg.backup.gitBackupRemote,

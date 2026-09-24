@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 
 type FormState = {
   remoteUrl: string
+  path: string
   branch: string
   authorName: string
   authorEmail: string
@@ -26,6 +27,7 @@ type FormState = {
 function emptyForm(): FormState {
   return {
     remoteUrl: '',
+    path: '',
     branch: 'main',
     authorName: '',
     authorEmail: '',
@@ -68,6 +70,9 @@ export default function BackupConfigForm() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [hasSshKey, setHasSshKey] = useState(false)
   const [hasHttpPassword, setHasHttpPassword] = useState(false)
+  const [sshKeyRevealed, setSshKeyRevealed] = useState(false)
+  const [httpPasswordRevealed, setHttpPasswordRevealed] = useState(false)
+  const [httpUsernameRevealed, setHttpUsernameRevealed] = useState(false)
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [disabling, setDisabling] = useState(false)
@@ -80,6 +85,7 @@ export default function BackupConfigForm() {
     if (!config) return
     setForm({
       remoteUrl: config.remoteUrl || '',
+      path: config.path || '',
       branch: config.branch || 'main',
       authorName: config.authorName || '',
       authorEmail: config.authorEmail || '',
@@ -94,6 +100,13 @@ export default function BackupConfigForm() {
     })
     setHasSshKey(config.hasSshKey)
     setHasHttpPassword(config.hasHttpPassword)
+    // Only render editable credential inputs by default when nothing is
+    // stored yet. An empty username+password pair is exactly the shape
+    // browsers detect as a login form and autofill into — silently
+    // overwriting the stored credentials on save (see #1570).
+    setSshKeyRevealed(!config.hasSshKey)
+    setHttpPasswordRevealed(!config.hasHttpPassword)
+    setHttpUsernameRevealed(!(config.httpUsername || '').trim())
   }, [config])
 
   const intervalError = useMemo(() => {
@@ -117,6 +130,7 @@ export default function BackupConfigForm() {
 
   const buildInput = (): BackupConfigInput => ({
     remoteUrl: form.remoteUrl.trim(),
+    path: form.path.trim(),
     branch: form.branch.trim(),
     authorName: form.authorName.trim(),
     authorEmail: form.authorEmail.trim(),
@@ -212,18 +226,31 @@ export default function BackupConfigForm() {
             <>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="backup-ssh-key">{t('config.sshKey')}</Label>
-                <Textarea
-                  id="backup-ssh-key"
-                  className="font-mono text-xs"
-                  rows={4}
-                  value={form.sshKey}
-                  placeholder={
-                    hasSshKey
-                      ? t('config.secretKeepPlaceholder')
-                      : t('config.sshKeyPlaceholder')
-                  }
-                  onChange={(e) => set('sshKey', e.target.value)}
-                />
+                {hasSshKey && !sshKeyRevealed ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted text-sm">
+                      {t('config.secretStoredLabel')}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSshKeyRevealed(true)}
+                    >
+                      {t('config.changeSecretButton')}
+                    </Button>
+                  </div>
+                ) : (
+                  <Textarea
+                    id="backup-ssh-key"
+                    className="font-mono text-xs"
+                    rows={4}
+                    autoComplete="off"
+                    value={form.sshKey}
+                    placeholder={t('config.sshKeyPlaceholder')}
+                    onChange={(e) => set('sshKey', e.target.value)}
+                  />
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="backup-ssh-key-path">
@@ -257,27 +284,55 @@ export default function BackupConfigForm() {
                 <Label htmlFor="backup-http-user">
                   {t('config.httpUsername')}
                 </Label>
-                <Input
-                  id="backup-http-user"
-                  value={form.httpUsername}
-                  onChange={(e) => set('httpUsername', e.target.value)}
-                />
+                {form.httpUsername && !httpUsernameRevealed ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{form.httpUsername}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setHttpUsernameRevealed(true)}
+                    >
+                      {t('config.changeSecretButton')}
+                    </Button>
+                  </div>
+                ) : (
+                  <Input
+                    id="backup-http-user"
+                    autoComplete="off"
+                    value={form.httpUsername}
+                    onChange={(e) => set('httpUsername', e.target.value)}
+                  />
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="backup-http-pass">
                   {t('config.httpPassword')}
                 </Label>
-                <Input
-                  id="backup-http-pass"
-                  type="password"
-                  value={form.httpPassword}
-                  placeholder={
-                    hasHttpPassword
-                      ? t('config.secretKeepPlaceholder')
-                      : t('config.httpPasswordPlaceholder')
-                  }
-                  onChange={(e) => set('httpPassword', e.target.value)}
-                />
+                {hasHttpPassword && !httpPasswordRevealed ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted text-sm">
+                      {t('config.secretStoredLabel')}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setHttpPasswordRevealed(true)}
+                    >
+                      {t('config.changeSecretButton')}
+                    </Button>
+                  </div>
+                ) : (
+                  <Input
+                    id="backup-http-pass"
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.httpPassword}
+                    placeholder={t('config.httpPasswordPlaceholder')}
+                    onChange={(e) => set('httpPassword', e.target.value)}
+                  />
+                )}
               </div>
             </>
           )}
@@ -290,6 +345,17 @@ export default function BackupConfigForm() {
               placeholder={t('config.branchPlaceholder')}
               onChange={(e) => set('branch', e.target.value)}
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="backup-path">{t('config.path')}</Label>
+            <Input
+              id="backup-path"
+              value={form.path}
+              placeholder={t('config.pathPlaceholder')}
+              onChange={(e) => set('path', e.target.value)}
+            />
+            <p className="text-muted text-xs">{t('config.pathHint')}</p>
           </div>
 
           <div className="flex gap-3">
