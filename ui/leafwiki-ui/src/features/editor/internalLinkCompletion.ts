@@ -6,7 +6,7 @@ import type {
 import { pickedCompletion } from '@codemirror/autocomplete'
 import type { EditorState } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
-import { editorPageLink } from '@/lib/fsLinkEditor'
+import { editorPageLink, isFilesystemLinksEnabled } from '@/lib/fsLinkEditor'
 import { FlatPageSearchItem, searchFlatPageSearchItems } from '@/lib/pageSearch'
 import { useTreeStore } from '@/stores/tree'
 
@@ -100,11 +100,19 @@ export function buildWikiLinkOptions(
       const range = getWikiLinkRangeForPosition(view.state, cursorPos)
       const safeFrom = range?.from ?? from
       const safeTo = range?.to ?? to
-      const insert = `${item.title}]]`
+      // Preserve embeds: converting ![[...]] to ![...](...) changes their meaning.
+      const isPageEmbed =
+        safeFrom >= 3 &&
+        view.state.doc.sliceString(safeFrom - 3, safeFrom) === '![['
+      const useFilesystemLink = isFilesystemLinksEnabled() && !isPageEmbed
+      const changeFrom = useFilesystemLink ? safeFrom - 2 : safeFrom
+      const insert = useFilesystemLink
+        ? `[${item.title}](${editorPageLink(item.path)})`
+        : `${item.title}]]`
 
       view.dispatch({
-        changes: { from: safeFrom, to: safeTo, insert },
-        selection: { anchor: safeFrom + insert.length },
+        changes: { from: changeFrom, to: safeTo, insert },
+        selection: { anchor: changeFrom + insert.length },
         annotations: pickedCompletion.of(completion),
       })
     },

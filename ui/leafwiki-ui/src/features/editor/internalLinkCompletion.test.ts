@@ -9,6 +9,8 @@ import {
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { PageNode } from '@/lib/api/pages'
+import { useConfigStore } from '@/stores/config'
 import {
   hasSuppressedExternalPrefix,
   buildMarkdownLinkOptions,
@@ -17,6 +19,24 @@ import {
 } from './internalLinkCompletion'
 import type { FlatPageSearchItem } from '@/lib/pageSearch'
 import { useTreeStore } from '@/stores/tree'
+
+beforeEach(() => {
+  useConfigStore.setState({ filesystemLinks: false })
+  window.history.replaceState({}, '', '/')
+})
+
+const treeNode = (
+  path: string,
+  kind: PageNode['kind'] = 'page',
+): PageNode => ({
+  id: path,
+  title: path,
+  slug: path.split('/').pop() ?? path,
+  path,
+  version: '1',
+  children: null,
+  kind,
+})
 
 const item = (
   title: string,
@@ -379,6 +399,115 @@ describe('buildWikiLinkOptions', () => {
       const apply = expectCompletionApply(options[0])
       apply(view, options[0], 2, '[[My'.length)
       expect(view.state.doc.toString()).toBe('[[My Page]]')
+    } finally {
+      view.destroy()
+      parent.remove()
+    }
+  })
+
+  it('inserts a relative .md link when filesystem links are enabled', () => {
+    useConfigStore.setState({ filesystemLinks: true })
+    window.history.replaceState({}, '', '/e/docs/current')
+    useTreeStore.setState({
+      byPath: {
+        'docs/current': treeNode('docs/current'),
+        'reference/target-page': treeNode('reference/target-page'),
+      },
+    })
+
+    const options = buildWikiLinkOptions([
+      item('Target Page', 'reference/target-page'),
+    ])
+    const doc = '[[Target]]'
+    const cursorPos = '[[Target'.length
+    const parent = document.createElement('div')
+    document.body.appendChild(parent)
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: cursorPos },
+      }),
+      parent,
+    })
+
+    try {
+      const apply = expectCompletionApply(options[0])
+      apply(view, options[0], 2, cursorPos)
+      expect(view.state.doc.toString()).toBe(
+        '[Target Page](../reference/target-page.md)',
+      )
+    } finally {
+      view.destroy()
+      parent.remove()
+    }
+  })
+
+  it('uses index.md for a section target with filesystem links enabled', () => {
+    useConfigStore.setState({ filesystemLinks: true })
+    window.history.replaceState({}, '', '/e/docs/current')
+    useTreeStore.setState({
+      byPath: {
+        'docs/current': treeNode('docs/current'),
+        reference: treeNode('reference', 'section'),
+      },
+    })
+
+    const options = buildWikiLinkOptions([
+      item('Reference', 'reference'),
+    ])
+    const doc = '[[Reference]]'
+    const cursorPos = '[[Reference'.length
+    const parent = document.createElement('div')
+    document.body.appendChild(parent)
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: cursorPos },
+      }),
+      parent,
+    })
+
+    try {
+      const apply = expectCompletionApply(options[0])
+      apply(view, options[0], 2, cursorPos)
+      expect(view.state.doc.toString()).toBe(
+        '[Reference](../reference/index.md)',
+      )
+    } finally {
+      view.destroy()
+      parent.remove()
+    }
+  })
+
+  it('leaves page embeds as wikilinks when filesystem links are enabled', () => {
+    useConfigStore.setState({ filesystemLinks: true })
+    window.history.replaceState({}, '', '/e/docs/current')
+    useTreeStore.setState({
+      byPath: {
+        'docs/current': treeNode('docs/current'),
+        'docs/target-page': treeNode('docs/target-page'),
+      },
+    })
+
+    const options = buildWikiLinkOptions([
+      item('Target Page', 'docs/target-page'),
+    ])
+    const doc = '![[Target]]'
+    const cursorPos = '![[Target'.length
+    const parent = document.createElement('div')
+    document.body.appendChild(parent)
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: cursorPos },
+      }),
+      parent,
+    })
+
+    try {
+      const apply = expectCompletionApply(options[0])
+      apply(view, options[0], 3, cursorPos)
+      expect(view.state.doc.toString()).toBe('![[Target Page]]')
     } finally {
       view.destroy()
       parent.remove()
